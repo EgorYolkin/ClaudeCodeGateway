@@ -1,10 +1,15 @@
 import asyncio
 import os
+import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 class OpenAIClient:
     def __init__(self):
         # Используем полный путь к бинарнику
         self.cli_cmd = "/opt/homebrew/bin/codex"
+        self.cli_workdir = os.getenv("CCG_CLI_WORKDIR", "/tmp")
         self._drain_tasks: set[asyncio.Task] = set()
 
     def _drain_stream(self, stream: asyncio.StreamReader | None) -> None:
@@ -33,6 +38,7 @@ class OpenAIClient:
         return "\n\n".join(lines)
 
     async def create_response(self, payload: dict, stream: bool = False):
+        started_at = time.perf_counter()
         messages = payload.get("messages", [])
         prompt = self._build_prompt(messages)
         model = payload.get("model", "gpt-5.3-codex")
@@ -56,16 +62,29 @@ class OpenAIClient:
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
+            cwd=self.cli_workdir,
         )
         
         if stream:
             self._drain_stream(process.stderr)
+            logger.info(
+                "codex stream spawned prompt_chars=%s cwd=%s spawn_ms=%.1f",
+                len(prompt),
+                self.cli_workdir,
+                (time.perf_counter() - started_at) * 1000,
+            )
             return process.stdout
         else:
             stdout, stderr = await process.communicate()
             if process.returncode != 0:
                 raise Exception(f"Codex CLI error: {stderr.decode()}")
+            logger.info(
+                "codex nonstream prompt_chars=%s cwd=%s total_ms=%.1f",
+                len(prompt),
+                self.cli_workdir,
+                (time.perf_counter() - started_at) * 1000,
+            )
             
             # Возвращаем структуру, похожую на ответ API для адаптера
             return {
