@@ -134,12 +134,7 @@ async def handle_streaming(request: AnthropicMessagesRequest, provider: str, rou
     elif provider == "google":
         gemini_model = route_info.get("model")
         gemini_payload = gemini_adapter.to_gemini_request(request)
-        stdout_stream = await gemini_client.generate_content(gemini_model, gemini_payload, stream=True)
-        while True:
-            chunk = await stdout_stream.read(256)
-            if not chunk:
-                break
-            text = chunk.decode(errors='replace')
+        async for text in gemini_client.stream_content(gemini_model, gemini_payload):
             if text:
                 chunks += 1
                 if first_chunk_at is None:
