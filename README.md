@@ -11,7 +11,7 @@ A personal, lightweight gateway for **Claude Code**. It lets you use Anthropic m
 If you are new and just want it working, run one command in Terminal:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/EgorYolkin/ClaudeCodeGateway/main/bootstrap.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/EgorYolkin/ClaudeCodeGateway/refs/heads/main/bootstrap.sh)
 ```
 
 Then follow the prompts. If asked, paste your `ANTHROPIC_API_KEY`.
@@ -55,7 +55,7 @@ That is all.
 ### Recommended
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/EgorYolkin/ClaudeCodeGateway/main/bootstrap.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/EgorYolkin/ClaudeCodeGateway/refs/heads/main/bootstrap.sh)
 ```
 
 ### Manual

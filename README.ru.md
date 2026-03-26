@@ -11,7 +11,7 @@
 Если вообще не хочется разбираться в деталях, просто выполните в Terminal одну команду:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/EgorYolkin/ClaudeCodeGateway/main/bootstrap.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/EgorYolkin/ClaudeCodeGateway/refs/heads/main/bootstrap.sh)
 ```
 
 Дальше следуйте подсказкам. Если попросит ключ, вставьте `ANTHROPIC_API_KEY`.
@@ -55,7 +55,7 @@ claude
 ### Рекомендуемый
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/EgorYolkin/ClaudeCodeGateway/main/bootstrap.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/EgorYolkin/ClaudeCodeGateway/refs/heads/main/bootstrap.sh)
 ```
 
 ### Ручной
