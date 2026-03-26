@@ -3,6 +3,15 @@ from app.schemas import AnthropicMessagesRequest, AnthropicMessagesResponse, Usa
 
 class OpenAIAdapter:
     @staticmethod
+    def _is_internal_claude_system_text(text: str) -> bool:
+        markers = [
+            "x-anthropic-billing-header:",
+            "You are Claude Code, Anthropic's official CLI for Claude.",
+            "IMPORTANT: Assist with authorized security testing",
+        ]
+        return any(marker in text for marker in markers)
+
+    @staticmethod
     def _extract_text_content(content: Any) -> str:
         if isinstance(content, str):
             return content
@@ -35,7 +44,7 @@ class OpenAIAdapter:
         elif isinstance(request.system, list):
             system_text = " ".join([block.get("text", "") for block in request.system if isinstance(block, dict) and block.get("type") == "text"])
             
-        if system_text:
+        if system_text and not OpenAIAdapter._is_internal_claude_system_text(system_text):
             messages.append({"role": "system", "content": system_text})
         
         for msg in request.messages:

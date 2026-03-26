@@ -5,6 +5,21 @@ class GeminiClient:
     def __init__(self):
         # Команда системного CLI
         self.cli_cmd = "/opt/homebrew/bin/gemini"
+        self._drain_tasks: set[asyncio.Task] = set()
+
+    def _drain_stream(self, stream: asyncio.StreamReader | None) -> None:
+        if stream is None:
+            return
+
+        async def _drain() -> None:
+            while True:
+                chunk = await stream.read(1024)
+                if not chunk:
+                    break
+
+        task = asyncio.create_task(_drain())
+        self._drain_tasks.add(task)
+        task.add_done_callback(self._drain_tasks.discard)
 
     @staticmethod
     def _build_prompt(contents: list[dict]) -> str:
@@ -27,16 +42,14 @@ class GeminiClient:
         # Формируем команду для CLI: gemini -m model -p "текст"
         cmd = [self.cli_cmd, "-m", model, "-p", prompt]
         
-        stderr_target = asyncio.subprocess.STDOUT if stream else asyncio.subprocess.PIPE
-
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=stderr_target
+            stderr=asyncio.subprocess.PIPE
         )
         
         if stream:
-            # Читаем стрим напрямую
+            self._drain_stream(process.stderr)
             return process.stdout
         else:
             stdout, stderr = await process.communicate()

@@ -4,6 +4,15 @@ from app.settings import settings
 
 class GeminiAdapter:
     @staticmethod
+    def _is_internal_claude_system_text(text: str) -> bool:
+        markers = [
+            "x-anthropic-billing-header:",
+            "You are Claude Code, Anthropic's official CLI for Claude.",
+            "IMPORTANT: Assist with authorized security testing",
+        ]
+        return any(marker in text for marker in markers)
+
+    @staticmethod
     def to_gemini_request(request: AnthropicMessagesRequest) -> Dict[str, Any]:
         contents = []
         for msg in request.messages:
@@ -38,7 +47,7 @@ class GeminiAdapter:
             elif isinstance(request.system, list):
                 system_text = " ".join([block.get("text", "") for block in request.system if isinstance(block, dict) and block.get("type") == "text"])
             
-            if system_text:
+            if system_text and not GeminiAdapter._is_internal_claude_system_text(system_text):
                 payload["systemInstruction"] = {"parts": [{"text": system_text}]}
             
         return payload

@@ -5,6 +5,21 @@ class OpenAIClient:
     def __init__(self):
         # Используем полный путь к бинарнику
         self.cli_cmd = "/opt/homebrew/bin/codex"
+        self._drain_tasks: set[asyncio.Task] = set()
+
+    def _drain_stream(self, stream: asyncio.StreamReader | None) -> None:
+        if stream is None:
+            return
+
+        async def _drain() -> None:
+            while True:
+                chunk = await stream.read(1024)
+                if not chunk:
+                    break
+
+        task = asyncio.create_task(_drain())
+        self._drain_tasks.add(task)
+        task.add_done_callback(self._drain_tasks.discard)
 
     @staticmethod
     def _build_prompt(messages: list[dict]) -> str:
@@ -38,16 +53,14 @@ class OpenAIClient:
             prompt,
         ]
 
-        stderr_target = asyncio.subprocess.STDOUT if stream else asyncio.subprocess.PIPE
-        
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=stderr_target
+            stderr=asyncio.subprocess.PIPE
         )
         
         if stream:
-            # Для CLI имитируем стриминг, читая строки по мере появления
+            self._drain_stream(process.stderr)
             return process.stdout
         else:
             stdout, stderr = await process.communicate()
