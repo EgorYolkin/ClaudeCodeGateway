@@ -1,0 +1,19 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Gateway Logs
+/tmp/claude-gateway.log
+/tmp/claude-gateway.err
+*.log
+
+# Environment / Secrets
+.env
+.env.example
+.DS_Store
+
+# macOS LaunchAgent
+com.user.claude-gateway.plist

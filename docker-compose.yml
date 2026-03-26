@@ -1,0 +1,20 @@
+services:
+  claude-gateway:
+    # Вместо билда используем запуск локального python, 
+    # чтобы иметь доступ к системным CLI (gemini, codex)
+    image: python:3.11-slim
+    container_name: claude-gateway
+    volumes:
+      - .:/app
+      - /usr/local/bin:/usr/local/bin # Прокидываем бинарники CLI
+      - $HOME/.gemini:/root/.gemini   # Прокидываем конфиги gemini CLI
+      - $HOME/.codex:/root/.codex     # Прокидываем конфиги codex CLI
+    working_dir: /app
+    ports:
+      - "8080:8080"
+    command: >
+      sh -c "pip install -r requirements.txt && 
+             uvicorn app.main:app --host 0.0.0.0 --port 8080"
+    environment:
+      GATEWAY_AUTH_TOKEN: ${GATEWAY_AUTH_TOKEN:-local-dev-token}
+    restart: unless-stopped

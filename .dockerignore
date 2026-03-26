@@ -1,0 +1,9 @@
+venv/
+.git
+.gitignore
+.dockerignore
+.env
+.DS_Store
+__pycache__/
+*.log
+/tmp/claude-gateway.*
