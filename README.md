@@ -1,75 +1,71 @@
 # Claude Code Gateway
 
-A personal, lightweight gateway for Claude Code to route requests between OpenAI (GPT-5.3 Codex) and Google (Gemini 3.1) using the Anthropic-compatible API.
+A personal, lightweight gateway for **Claude Code** that enables a hybrid environment: original Anthropic models side-by-side with **OpenAI GPT-5.3 Codex** and **Google Gemini 3.1** via their respective system CLIs.
 
-## Features
+![Example Setup](resources/example.jpg)
 
-- **Anthropic-compatible endpoint** (`/v1/messages`).
-- **Exact Token Counting** using provider native APIs.
-- **Routing by Model ID**:
-  - `codex-low`, `codex-medium`, `codex-high` -> OpenAI Responses API.
-  - `gemini-pro`, `gemini-flash` -> Gemini API.
+## 🚀 Key Features
 
-## Setup
+- **macOS Native**: Runs as a `LaunchAgent` (no Docker required), allowing direct access to your system CLI tools (`codex`, `gemini`).
+- **Hybrid Routing**:
+  - **Claude 3.5 Sonnet & Opus 3**: Proxied directly to Anthropic API.
+  - **GPT-5.3 Codex**: Occupies the **Haiku** slot (renamed in menu) with full **Effort Slider** support.
+  - **Gemini 3.1**: Occupies the **Custom Model** slot (Item 5) with Effort-based switching (Lite/Flash/Pro).
+- **CLI Wrappers**: Leverages your existing authenticated CLI sessions for OpenAI and Google models.
+- **Accurate Token Counting**: Uses provider-specific logic for precise usage tracking.
 
-1. **Create .env file**:
+## 🛠 Model Mapping
+
+| Slot in Claude Code | Model Provided | Backend |
+| :--- | :--- | :--- |
+| **Sonnet** | Claude 3.5 Sonnet | Anthropic Proxy |
+| **Opus** | Claude 3 Opus | Anthropic Proxy |
+| **Haiku** (Renamed) | **GPT-5.3 Codex** | `codex cli` (effort logic) |
+| **Custom (Item 5)** | **Gemini 3.1** | `gemini cli` (effort logic) |
+
+### Gemini Effort Logic:
+- **Low Effort** ➔ Gemini 3 Flash Lite
+- **Medium Effort** ➔ Gemini 3 Flash
+- **High Effort** ➔ Gemini 3.1 Pro
+
+## 📦 Installation (macOS)
+
+1. **One-command install (recommended)**:
    ```bash
-   OPENAI_API_KEY=your_openai_key
-   GEMINI_API_KEY=your_gemini_key
-   GATEWAY_AUTH_TOKEN=local-dev-token
+   curl -fsSL https://raw.githubusercontent.com/EgorYolkin/ClaudeCodeGateway/main/bootstrap.sh | bash
    ```
 
-2. **Run with Docker**:
+2. **Reload your shell**:
    ```bash
-   docker compose up -d
+   source ~/.zshrc
    ```
 
-## Claude Code Configuration
+3. **Start Claude Code**:
+   ```bash
+   claude
+   ```
 
-### 1. Environment Variables
-
-Set these in your shell before running `claude`:
+### Manual install (alternative)
 
 ```bash
-export ANTHROPIC_BASE_URL=http://127.0.0.1:8080
-export ANTHROPIC_AUTH_TOKEN=local-dev-token
-
-export ANTHROPIC_DEFAULT_OPUS_MODEL=codex-high
-export ANTHROPIC_DEFAULT_OPUS_MODEL_NAME="GPT-5.3 Codex High"
-export ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION="Local gateway -> OpenAI Responses API"
-export ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES="effort,max_effort"
-
-export ANTHROPIC_DEFAULT_SONNET_MODEL=codex-medium
-export ANTHROPIC_DEFAULT_SONNET_MODEL_NAME="GPT-5.3 Codex Medium"
-export ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION="Local gateway -> OpenAI Responses API"
-export ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES="effort,max_effort"
-
-export ANTHROPIC_DEFAULT_HAIKU_MODEL=codex-low
-export ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME="GPT-5.3 Codex Low"
-export ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION="Local gateway -> OpenAI Responses API"
-export ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES="effort,max_effort"
-
-export ANTHROPIC_CUSTOM_MODEL_OPTION=gemini-pro
-export ANTHROPIC_CUSTOM_MODEL_OPTION_NAME="Gemini 3.1 Pro Preview"
-export ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION="Local gateway -> Gemini API"
+git clone git@github.com:EgorYolkin/ClaudeCodeGateway.git
+cd ClaudeCodeGateway
+chmod +x install.sh
+./install.sh
 ```
 
-### 2. settings.json (Claude Code)
+Notes:
+- Default bootstrap install path: `~/.claude-code-gateway`
+- Override install path: `CCG_INSTALL_DIR=~/my-gateway curl -fsSL https://raw.githubusercontent.com/EgorYolkin/ClaudeCodeGateway/main/bootstrap.sh | bash`
+- Override branch: `CCG_BRANCH=dev curl -fsSL https://raw.githubusercontent.com/EgorYolkin/ClaudeCodeGateway/main/bootstrap.sh | bash`
 
-To map the 5th model (Gemini Flash), update your Claude Code settings:
+## ⚙️ Configuration
 
-```json
-{
-  "modelOverrides": {
-    "claude-opus-4-5-20251101": "gemini-flash"
-  }
-}
-```
+The gateway runs locally on `http://127.0.0.1:8080`. 
+- **Logs**: `/tmp/claude-gateway.log`
+- **Errors**: `/tmp/claude-gateway.err`
+- **Agent Config**: `~/Library/LaunchAgents/com.user.claude-gateway.plist`
 
-## Available Models in `/model`
+## 🤝 Contributing
 
-- **Opus Slot**: GPT-5.3 Codex High
-- **Sonnet Slot**: GPT-5.3 Codex Medium
-- **Haiku Slot**: GPT-5.3 Codex Low
-- **Custom Model**: Gemini 3.1 Pro Preview
-- **Opus Override**: Gemini 3 Flash Preview
+Feel free to open issues or PRs in the `dev` branch.
