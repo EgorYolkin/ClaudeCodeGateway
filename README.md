@@ -1,8 +1,14 @@
 # Claude Code Gateway
 
+![Example Setup](resources/example.jpg)
+
 A personal, lightweight gateway for **Claude Code** that enables a hybrid environment: original Anthropic models side-by-side with **OpenAI GPT-5.3 Codex** and **Google Gemini 3.1** via their respective system CLIs.
 
-![Example Setup](resources/example.jpg)
+# Quick install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/EgorYolkin/ClaudeCodeGateway/main  /bootstrap.sh | bash
+```
 
 ## 🚀 Key Features
 
