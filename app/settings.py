@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 from typing import Dict, Any
 
 class Settings(BaseSettings):
+    ANTHROPIC_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
     GATEWAY_AUTH_TOKEN: str = "local-dev-token"

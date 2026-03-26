@@ -29,14 +29,22 @@ require_command() {
   fi
 }
 
+has_control_chars() {
+  printf '%s' "$1" | LC_ALL=C grep -q '[[:cntrl:]]'
+}
+
 ensure_env_key() {
   local env_file="$1"
   local current_key
   local key="${CCG_ANTHROPIC_API_KEY:-${ANTHROPIC_API_KEY:-}}"
   current_key="$(grep -E '^ANTHROPIC_API_KEY=' "$env_file" | sed 's/^ANTHROPIC_API_KEY=//' || true)"
 
-  if [ -n "$current_key" ]; then
+  if [ -n "$current_key" ] && ! has_control_chars "$current_key"; then
     return
+  fi
+
+  if [ -n "$current_key" ] && has_control_chars "$current_key"; then
+    warn "Found invalid ANTHROPIC_API_KEY in $env_file (contains control characters)."
   fi
 
   if [ -z "$key" ]; then
@@ -55,6 +63,11 @@ ensure_env_key() {
 
   if [ -z "${key:-}" ]; then
     echo "ANTHROPIC_API_KEY cannot be empty." >&2
+    exit 1
+  fi
+
+  if has_control_chars "$key"; then
+    echo "ANTHROPIC_API_KEY contains invalid control characters." >&2
     exit 1
   fi
 
