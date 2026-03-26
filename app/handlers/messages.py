@@ -19,13 +19,28 @@ from app.utils.sse import (
     message_delta_event, message_stop_event
 )
 
+def resolve_effort(raw_data: Dict[str, Any]) -> str:
+    effort = raw_data.get("reasoning_effort")
+    if effort in {"low", "medium", "high"}:
+        return effort
+
+    thinking = raw_data.get("thinking")
+    if isinstance(thinking, dict):
+        budget = thinking.get("budget_tokens")
+        if isinstance(budget, int):
+            if budget <= 2048:
+                return "low"
+            if budget >= 10000:
+                return "high"
+    return "medium"
+
 async def handle_messages(request: AnthropicMessagesRequest, headers: Dict[str, str]) -> Union[AnthropicMessagesResponse, AsyncGenerator[str, None]]:
     model_name = request.model
 
     # 1. Логика переключения Gemini (Custom Slot)
     if model_name == "gemini":
         raw_data = request.model_dump()
-        effort = raw_data.get("reasoning_effort", "medium")
+        effort = resolve_effort(raw_data)
         if effort == "low":
             model_name = "gemini-flash-lite"
         elif effort == "high":
@@ -37,7 +52,7 @@ async def handle_messages(request: AnthropicMessagesRequest, headers: Dict[str, 
     # 2. Логика переключения Codex (Hijacked Slot)
     if model_name == "codex":
         raw_data = request.model_dump()
-        effort = raw_data.get("reasoning_effort", "medium")
+        effort = resolve_effort(raw_data)
         if effort == "low":
             model_name = "codex-low"
         elif effort == "high":
@@ -61,8 +76,7 @@ async def handle_messages(request: AnthropicMessagesRequest, headers: Dict[str, 
     provider = route_info.get("provider")
 
     if provider == "openai":
-        openai_payload = openai_adapter.to_openai_request(request)
-        openai_payload["model"] = route_info.get("model")
+        openai_payload = openai_adapter.to_openai_request(request, route_info=route_info)
         if not request.stream:
             response_json = await openai_client.create_response(openai_payload)
             return openai_adapter.from_openai_response(response_json, request.model)
@@ -89,13 +103,13 @@ async def handle_streaming(request: AnthropicMessagesRequest, provider: str, rou
     yield content_block_start_event(0)
 
     if provider == "openai":
-        openai_payload = openai_adapter.to_openai_request(request)
-        openai_payload["model"] = route_info.get("model")
+        openai_payload = openai_adapter.to_openai_request(request, route_info=route_info)
         stdout_stream = await openai_client.create_response(openai_payload, stream=True)
         while True:
-            line = await stdout_stream.readline()
-            if not line: break
-            text = line.decode(errors='replace')
+            chunk = await stdout_stream.read(256)
+            if not chunk:
+                break
+            text = chunk.decode(errors='replace')
             if text:
                 yield content_block_delta_event(text)
                 
@@ -104,9 +118,10 @@ async def handle_streaming(request: AnthropicMessagesRequest, provider: str, rou
         gemini_payload = gemini_adapter.to_gemini_request(request)
         stdout_stream = await gemini_client.generate_content(gemini_model, gemini_payload, stream=True)
         while True:
-            line = await stdout_stream.readline()
-            if not line: break
-            text = line.decode(errors='replace')
+            chunk = await stdout_stream.read(256)
+            if not chunk:
+                break
+            text = chunk.decode(errors='replace')
             if text:
                 yield content_block_delta_event(text)
 
@@ -118,11 +133,11 @@ async def handle_count_tokens(request: AnthropicMessagesRequest, headers: Dict[s
     model_name = request.model
     if model_name == "gemini":
         raw_data = request.model_dump()
-        effort = raw_data.get("reasoning_effort", "medium")
+        effort = resolve_effort(raw_data)
         model_name = "gemini-flash-lite" if effort == "low" else ("gemini" if effort == "high" else "gemini-flash")
     elif model_name == "codex":
         raw_data = request.model_dump()
-        effort = raw_data.get("reasoning_effort", "medium")
+        effort = resolve_effort(raw_data)
         model_name = "codex-low" if effort == "low" else ("codex-high" if effort == "high" else "codex")
 
     route_info = settings.ROUTES.get(model_name)
@@ -131,8 +146,7 @@ async def handle_count_tokens(request: AnthropicMessagesRequest, headers: Dict[s
 
     provider = route_info.get("provider")
     if provider == "openai":
-        openai_payload = openai_adapter.to_openai_request(request)
-        openai_payload["model"] = route_info.get("model")
+        openai_payload = openai_adapter.to_openai_request(request, route_info=route_info)
         response = await openai_client.count_tokens(openai_payload)
         return response.get("input_tokens", 0)
     elif provider == "google":

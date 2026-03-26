@@ -1,17 +1,34 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from app.schemas import AnthropicMessagesRequest, AnthropicMessagesResponse, Usage, MessageContent
-from app.settings import settings
 
 class OpenAIAdapter:
     @staticmethod
-    def to_openai_request(request: AnthropicMessagesRequest) -> Dict[str, Any]:
-        route_info = settings.ROUTES.get(request.model, {})
-        openai_model = route_info.get("model", "gpt-5.3-codex")
+    def _extract_text_content(content: Any) -> str:
+        if isinstance(content, str):
+            return content
+
+        if isinstance(content, list):
+            text_parts: List[str] = []
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    text_parts.append(item.get("text", ""))
+                elif hasattr(item, "type") and getattr(item, "type", None) == "text":
+                    text_parts.append(getattr(item, "text", "") or "")
+            return " ".join([part for part in text_parts if part])
+
+        return str(content)
+
+    @staticmethod
+    def to_openai_request(
+        request: AnthropicMessagesRequest,
+        route_info: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        route_info = route_info or {}
+        openai_model = route_info.get("model", request.model)
         reasoning_effort = route_info.get("reasoning_effort")
 
-        messages = []
+        messages: List[Dict[str, str]] = []
         
-        # Handle complex system instruction
         system_text = ""
         if isinstance(request.system, str):
             system_text = request.system
@@ -22,18 +39,8 @@ class OpenAIAdapter:
             messages.append({"role": "system", "content": system_text})
         
         for msg in request.messages:
-            content = msg.content
-            if isinstance(content, list):
-                # Simple text extraction for v1
-                text_parts = []
-                for c in content:
-                    if isinstance(c, dict):
-                        if c.get("type") == "text":
-                            text_parts.append(c.get("text", ""))
-                    elif hasattr(c, "type") and c.type == "text":
-                        text_parts.append(getattr(c, "text", "") or "")
-                content = " ".join(text_parts)
-            messages.append({"role": msg.role, "content": content})
+            content_text = OpenAIAdapter._extract_text_content(msg.content)
+            messages.append({"role": msg.role, "content": content_text})
 
         payload = {
             "model": openai_model,

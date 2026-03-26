@@ -6,10 +6,23 @@ class GeminiClient:
         # Команда системного CLI
         self.cli_cmd = "/opt/homebrew/bin/gemini"
 
+    @staticmethod
+    def _build_prompt(contents: list[dict]) -> str:
+        lines: list[str] = []
+        for item in contents:
+            role = str(item.get("role", "user")).upper()
+            parts = item.get("parts", [])
+            text = ""
+            if parts and isinstance(parts, list):
+                text = str(parts[0].get("text", ""))
+            if text:
+                lines.append(f"{role}: {text}")
+        lines.append("MODEL:")
+        return "\n\n".join(lines)
+
     async def generate_content(self, model: str, payload: dict, stream: bool = False):
-        # Извлекаем промпт
         contents = payload.get("contents", [])
-        prompt = contents[-1].get("parts", [{}])[0].get("text", "") if contents else ""
+        prompt = self._build_prompt(contents)
 
         # Формируем команду для CLI: gemini -m model -p "текст"
         cmd = [self.cli_cmd, "-m", model, "-p", prompt]
@@ -35,8 +48,7 @@ class GeminiClient:
             }
 
     async def count_tokens(self, model: str, payload: dict):
-        # Аналогично OpenAI, или через спец флаг если есть в CLI
-        prompt = payload.get("contents", [{}])[-1].get("parts", [{}])[0].get("text", "")
+        prompt = self._build_prompt(payload.get("contents", []))
         return {"totalTokens": len(prompt) // 4}
 
 gemini_client = GeminiClient()

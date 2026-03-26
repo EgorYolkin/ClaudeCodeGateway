@@ -6,10 +6,20 @@ class OpenAIClient:
         # Используем полный путь к бинарнику
         self.cli_cmd = "/opt/homebrew/bin/codex"
 
+    @staticmethod
+    def _build_prompt(messages: list[dict]) -> str:
+        lines: list[str] = []
+        for msg in messages:
+            role = str(msg.get("role", "user")).upper()
+            content = str(msg.get("content", ""))
+            if content:
+                lines.append(f"{role}: {content}")
+        lines.append("ASSISTANT:")
+        return "\n\n".join(lines)
+
     async def create_response(self, payload: dict, stream: bool = False):
-        # Извлекаем последний промпт из сообщений
         messages = payload.get("messages", [])
-        prompt = messages[-1].get("content", "") if messages else ""
+        prompt = self._build_prompt(messages)
         model = payload.get("model", "gpt-5.3-codex")
         effort = payload.get("reasoning_effort", "medium")
 
@@ -40,9 +50,7 @@ class OpenAIClient:
             }
 
     async def count_tokens(self, payload: dict):
-        # Если у CLI нет встроенного счетчика, возвращаем примерную длину
-        # Или вызываем специфичную команду, если она есть
-        prompt = payload.get("messages", [{}])[-1].get("content", "")
+        prompt = self._build_prompt(payload.get("messages", []))
         return {"input_tokens": len(prompt) // 4}
 
 openai_client = OpenAIClient()
