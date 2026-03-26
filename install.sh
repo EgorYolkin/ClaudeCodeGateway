@@ -72,6 +72,7 @@ export ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES="effort,max_effort"
 export ANTHROPIC_CUSTOM_MODEL_OPTION=gemini
 export ANTHROPIC_CUSTOM_MODEL_OPTION_NAME="Gemini 3.1"
 export ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION="Local gateway -> Gemini CLI (Effort logic)"
+export ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES="effort,max_effort"
 
 # 3. Sonnet и Opus оставляем стандартными (они будут проксироваться)
 unset ANTHROPIC_DEFAULT_SONNET_MODEL

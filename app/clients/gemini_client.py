@@ -27,10 +27,12 @@ class GeminiClient:
         # Формируем команду для CLI: gemini -m model -p "текст"
         cmd = [self.cli_cmd, "-m", model, "-p", prompt]
         
+        stderr_target = asyncio.subprocess.STDOUT if stream else asyncio.subprocess.PIPE
+
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=stderr_target
         )
         
         if stream:

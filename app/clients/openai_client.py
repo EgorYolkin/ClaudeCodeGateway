@@ -26,12 +26,24 @@ class OpenAIClient:
         # Формируем команду для CLI
         # Помощь показала: -c key=value для переопределения конфига
         # Модель через -m
-        cmd = [self.cli_cmd, "-m", model, "-c", f"reasoning_effort=\"{effort}\"", "exec", prompt]
+        cmd = [
+            self.cli_cmd,
+            "-m",
+            model,
+            "-c",
+            f"reasoning_effort=\"{effort}\"",
+            "exec",
+            "--ephemeral",
+            "--skip-git-repo-check",
+            prompt,
+        ]
+
+        stderr_target = asyncio.subprocess.STDOUT if stream else asyncio.subprocess.PIPE
         
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=stderr_target
         )
         
         if stream:
