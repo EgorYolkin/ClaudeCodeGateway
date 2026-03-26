@@ -32,29 +32,48 @@ require_command() {
 ensure_env_key() {
   local env_file="$1"
   local current_key
+  local key="${CCG_ANTHROPIC_API_KEY:-${ANTHROPIC_API_KEY:-}}"
   current_key="$(grep -E '^ANTHROPIC_API_KEY=' "$env_file" | sed 's/^ANTHROPIC_API_KEY=//' || true)"
 
   if [ -n "$current_key" ]; then
     return
   fi
 
-  warn "ANTHROPIC_API_KEY is missing in $env_file."
-  printf "Enter ANTHROPIC_API_KEY (input hidden): "
-  stty -echo
-  read -r key
-  stty echo
-  printf "\n"
+  if [ -z "$key" ]; then
+    warn "ANTHROPIC_API_KEY is missing in $env_file."
+
+    if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+      printf "Enter ANTHROPIC_API_KEY (input hidden): " > /dev/tty
+      IFS= read -r -s key < /dev/tty
+      printf "\n" > /dev/tty
+    else
+      echo "ANTHROPIC_API_KEY is required for non-interactive install." >&2
+      echo "Run with env var: ANTHROPIC_API_KEY=... bash <(curl -fsSL https://raw.githubusercontent.com/EgorYolkin/ClaudeCodeGateway/refs/heads/main/bootstrap.sh)" >&2
+      exit 1
+    fi
+  fi
 
   if [ -z "${key:-}" ]; then
     echo "ANTHROPIC_API_KEY cannot be empty." >&2
     exit 1
   fi
 
-  if grep -qE '^ANTHROPIC_API_KEY=' "$env_file"; then
-    sed -i.bak "s|^ANTHROPIC_API_KEY=.*$|ANTHROPIC_API_KEY=$key|" "$env_file"
-  else
-    printf "\nANTHROPIC_API_KEY=%s\n" "$key" >> "$env_file"
-  fi
+  # Rewrite via awk to avoid sed replacement pitfalls with key chars like '&' and '\'.
+  awk -v key="$key" '
+    BEGIN { updated = 0 }
+    /^ANTHROPIC_API_KEY=/ {
+      print "ANTHROPIC_API_KEY=" key
+      updated = 1
+      next
+    }
+    { print }
+    END {
+      if (!updated) {
+        print "ANTHROPIC_API_KEY=" key
+      }
+    }
+  ' "$env_file" > "$env_file.tmp"
+  mv "$env_file.tmp" "$env_file"
 }
 
 if [ "$(uname -s)" != "Darwin" ]; then
