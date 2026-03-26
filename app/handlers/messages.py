@@ -2,6 +2,7 @@ import json
 import asyncio
 import logging
 import os
+import time
 from typing import Dict, Any, AsyncGenerator, Union
 from app.schemas import AnthropicMessagesRequest, AnthropicMessagesResponse
 from app.settings import settings
@@ -35,6 +36,7 @@ def resolve_effort(raw_data: Dict[str, Any]) -> str:
     return "medium"
 
 async def handle_messages(request: AnthropicMessagesRequest, headers: Dict[str, str]) -> Union[AnthropicMessagesResponse, AsyncGenerator[str, None]]:
+    started_at = time.perf_counter()
     model_name = request.model
 
     # 1. Логика переключения Gemini (Custom Slot)
@@ -79,6 +81,11 @@ async def handle_messages(request: AnthropicMessagesRequest, headers: Dict[str, 
         openai_payload = openai_adapter.to_openai_request(request, route_info=route_info)
         if not request.stream:
             response_json = await openai_client.create_response(openai_payload)
+            logger.info(
+                "provider=openai model=%s request_ms=%.1f",
+                model_name,
+                (time.perf_counter() - started_at) * 1000,
+            )
             return openai_adapter.from_openai_response(response_json, request.model)
         else:
             return handle_streaming(request, provider, route_info, model_name)
@@ -88,6 +95,11 @@ async def handle_messages(request: AnthropicMessagesRequest, headers: Dict[str, 
         gemini_payload = gemini_adapter.to_gemini_request(request)
         if not request.stream:
             response_json = await gemini_client.generate_content(gemini_model, gemini_payload)
+            logger.info(
+                "provider=google model=%s request_ms=%.1f",
+                model_name,
+                (time.perf_counter() - started_at) * 1000,
+            )
             return gemini_adapter.from_gemini_response(response_json, request.model)
         else:
             return handle_streaming(request, provider, route_info, model_name)
@@ -99,6 +111,9 @@ async def handle_anthropic_streaming(request: AnthropicMessagesRequest, headers:
                 yield line + "\n"
 
 async def handle_streaming(request: AnthropicMessagesRequest, provider: str, route_info: Dict[str, Any], model_id: str) -> AsyncGenerator[str, None]:
+    started_at = time.perf_counter()
+    first_chunk_at = None
+    chunks = 0
     yield message_start_event(model_id, f"msg_stream_local_cli_{model_id}")
     yield content_block_start_event(0)
 
@@ -111,6 +126,9 @@ async def handle_streaming(request: AnthropicMessagesRequest, provider: str, rou
                 break
             text = chunk.decode(errors='replace')
             if text:
+                chunks += 1
+                if first_chunk_at is None:
+                    first_chunk_at = time.perf_counter()
                 yield content_block_delta_event(text)
                 
     elif provider == "google":
@@ -123,7 +141,21 @@ async def handle_streaming(request: AnthropicMessagesRequest, provider: str, rou
                 break
             text = chunk.decode(errors='replace')
             if text:
+                chunks += 1
+                if first_chunk_at is None:
+                    first_chunk_at = time.perf_counter()
                 yield content_block_delta_event(text)
+
+    total_ms = (time.perf_counter() - started_at) * 1000
+    ttfb_ms = (first_chunk_at - started_at) * 1000 if first_chunk_at else total_ms
+    logger.info(
+        "stream provider=%s model=%s ttfb_ms=%.1f total_ms=%.1f chunks=%s",
+        provider,
+        model_id,
+        ttfb_ms,
+        total_ms,
+        chunks,
+    )
 
     yield content_block_stop_event(0)
     yield message_delta_event()

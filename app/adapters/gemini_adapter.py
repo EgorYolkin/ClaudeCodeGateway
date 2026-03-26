@@ -3,6 +3,9 @@ from app.schemas import AnthropicMessagesRequest, AnthropicMessagesResponse, Usa
 from app.settings import settings
 
 class GeminiAdapter:
+    MAX_HISTORY_MESSAGES = 16
+    MAX_HISTORY_CHARS = 12000
+
     @staticmethod
     def _is_internal_claude_system_text(text: str) -> bool:
         markers = [
@@ -13,22 +16,66 @@ class GeminiAdapter:
         return any(marker in text for marker in markers)
 
     @staticmethod
-    def to_gemini_request(request: AnthropicMessagesRequest) -> Dict[str, Any]:
-        contents = []
+    def _extract_text_content(content: Any) -> str:
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            text_parts: List[str] = []
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    text_parts.append(item.get("text", ""))
+                elif hasattr(item, "type") and getattr(item, "type", None) == "text":
+                    text_parts.append(getattr(item, "text", "") or "")
+            return " ".join([part for part in text_parts if part])
+        return str(content)
+
+    @staticmethod
+    def _sanitize_message_text(text: str) -> str:
+        noise_markers = (
+            "mcp:",
+            "mcp startup:",
+            "OpenAI Codex v",
+            "Keychain initialization encountered an error",
+            "Using FileKeychain fallback for secure storage.",
+            "Loaded cached credentials.",
+            "session id:",
+            "workdir:",
+            "provider:",
+            "approval:",
+            "sandbox:",
+            "reasoning effort:",
+            "tokens used",
+        )
+        lines = [line for line in text.splitlines() if not line.strip().startswith(noise_markers)]
+        return "\n".join(lines).strip()
+
+    @staticmethod
+    def _build_contents(request: AnthropicMessagesRequest) -> List[Dict[str, Any]]:
+        normalized: List[Dict[str, Any]] = []
         for msg in request.messages:
             role = "user" if msg.role == "user" else "model"
-            content_val = msg.content
-            if isinstance(content_val, list):
-                # Simple text extraction for v1
-                text_parts = []
-                for c in content_val:
-                    if isinstance(c, dict):
-                        if c.get("type") == "text":
-                            text_parts.append(c.get("text", ""))
-                    elif hasattr(c, "type") and c.type == "text":
-                        text_parts.append(getattr(c, "text", "") or "")
-                content_val = " ".join(text_parts)
-            contents.append({"role": role, "parts": [{"text": content_val}]})
+            text = GeminiAdapter._sanitize_message_text(GeminiAdapter._extract_text_content(msg.content))
+            if text:
+                normalized.append({"role": role, "parts": [{"text": text}]})
+
+        selected: List[Dict[str, Any]] = []
+        total_chars = 0
+        for msg in reversed(normalized):
+            text = msg["parts"][0]["text"]
+            msg_len = len(text)
+            if selected and (
+                len(selected) >= GeminiAdapter.MAX_HISTORY_MESSAGES
+                or total_chars + msg_len > GeminiAdapter.MAX_HISTORY_CHARS
+            ):
+                break
+            selected.append(msg)
+            total_chars += msg_len
+        selected.reverse()
+        return selected
+
+    @staticmethod
+    def to_gemini_request(request: AnthropicMessagesRequest) -> Dict[str, Any]:
+        contents = GeminiAdapter._build_contents(request)
 
         payload = {
             "contents": contents,

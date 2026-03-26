@@ -2,6 +2,9 @@ from typing import Dict, Any, List, Optional
 from app.schemas import AnthropicMessagesRequest, AnthropicMessagesResponse, Usage, MessageContent
 
 class OpenAIAdapter:
+    MAX_HISTORY_MESSAGES = 16
+    MAX_HISTORY_CHARS = 12000
+
     @staticmethod
     def _is_internal_claude_system_text(text: str) -> bool:
         markers = [
@@ -28,6 +31,49 @@ class OpenAIAdapter:
         return str(content)
 
     @staticmethod
+    def _sanitize_message_text(text: str) -> str:
+        noise_markers = (
+            "mcp:",
+            "mcp startup:",
+            "OpenAI Codex v",
+            "Keychain initialization encountered an error",
+            "Using FileKeychain fallback for secure storage.",
+            "Loaded cached credentials.",
+            "session id:",
+            "workdir:",
+            "provider:",
+            "approval:",
+            "sandbox:",
+            "reasoning effort:",
+            "tokens used",
+        )
+        lines = [line for line in text.splitlines() if not line.strip().startswith(noise_markers)]
+        return "\n".join(lines).strip()
+
+    @staticmethod
+    def _build_history_messages(request: AnthropicMessagesRequest) -> List[Dict[str, str]]:
+        normalized: List[Dict[str, str]] = []
+        for msg in request.messages:
+            content_text = OpenAIAdapter._sanitize_message_text(OpenAIAdapter._extract_text_content(msg.content))
+            if not content_text:
+                continue
+            normalized.append({"role": msg.role, "content": content_text})
+
+        selected: List[Dict[str, str]] = []
+        total_chars = 0
+        for msg in reversed(normalized):
+            msg_len = len(msg["content"])
+            if selected and (
+                len(selected) >= OpenAIAdapter.MAX_HISTORY_MESSAGES
+                or total_chars + msg_len > OpenAIAdapter.MAX_HISTORY_CHARS
+            ):
+                break
+            selected.append(msg)
+            total_chars += msg_len
+        selected.reverse()
+        return selected
+
+    @staticmethod
     def to_openai_request(
         request: AnthropicMessagesRequest,
         route_info: Optional[Dict[str, Any]] = None
@@ -47,9 +93,7 @@ class OpenAIAdapter:
         if system_text and not OpenAIAdapter._is_internal_claude_system_text(system_text):
             messages.append({"role": "system", "content": system_text})
         
-        for msg in request.messages:
-            content_text = OpenAIAdapter._extract_text_content(msg.content)
-            messages.append({"role": msg.role, "content": content_text})
+        messages.extend(OpenAIAdapter._build_history_messages(request))
 
         payload = {
             "model": openai_model,
